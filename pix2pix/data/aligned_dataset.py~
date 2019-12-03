@@ -1,0 +1,156 @@
+import os.path
+import random
+import torchvision.transforms as transforms
+import torch
+from data.base_dataset import BaseDataset
+from data.image_folder import make_dataset
+from PIL import Image
+from IPython import embed
+
+
+class AlignedDataset(BaseDataset):
+    @staticmethod
+    def modify_commandline_options(parser, is_train):
+        return parser
+
+    def initialize(self, opt):
+        self.opt = opt
+        self.root = opt.dataroot
+        self.dir_AB = os.path.join(opt.dataroot, opt.phase)
+        self.AB_paths = sorted(make_dataset(self.dir_AB))
+        assert(opt.resize_or_crop == 'resize_and_crop')
+
+    def __getitem__(self, index):
+        rand = self.opt.serial_batches_count
+        new_ind = (index + random.randint(0,rand))
+        AB_path = self.AB_paths[index]
+        AB = Image.open(AB_path).convert('RGB')
+        w, h = AB.size
+        assert(self.opt.loadSize >= self.opt.fineSize)
+        w2 = int(w / 2)
+        A = AB.crop((0, 0, w2, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+        
+        B = AB.crop((w2, 0, w, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+
+        A = transforms.ToTensor()(A)
+
+        B = transforms.ToTensor()(B)
+
+        w_offset = random.randint(0, max(0, self.opt.loadSize - self.opt.fineSize - 1))
+        h_offset = random.randint(0, max(0, self.opt.loadSize - self.opt.fineSize - 1))
+
+        A = A[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+        B = B[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+
+        A = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A)
+        B = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B)
+        
+        if self.opt.input_nc == 18:
+            A_path_m3 = self.AB_paths[(new_ind-2) % len(self.AB_paths)]
+            A_path_m2 = self.AB_paths[(new_ind-1) % len(self.AB_paths)]
+            A_path_m1 = self.AB_paths[(new_ind) % len(self.AB_paths)]
+            A_path_p1 = self.AB_paths[(new_ind+1) % len(self.AB_paths)]
+            A_path_p2 = self.AB_paths[(new_ind+2) % len(self.AB_paths)]
+            
+            A_img_m3 = Image.open(A_path_m3).convert('RGB')
+            A_img_m2 = Image.open(A_path_m2).convert('RGB')
+            A_img_m1 = Image.open(A_path_m1).convert('RGB')
+            A_img_p1 = Image.open(A_path_p1).convert('RGB')
+            A_img_p2 = Image.open(A_path_p2).convert('RGB')
+            A_m3 = A_img_m3.crop((0, 0, w2, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+            A_m2 = A_img_m2.crop((0, 0, w2, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+            A_m1 = A_img_m1.crop((0, 0, w2, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+            A_p1 = A_img_p1.crop((0, 0, w2, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+            A_p2 = A_img_p2.crop((0, 0, w2, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+            
+            B_m1 = A_img_m1.crop((w2, 0, w, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+            
+            A_m3 = transforms.ToTensor()(A_m3)
+            A_m2 = transforms.ToTensor()(A_m2)
+            A_m1 = transforms.ToTensor()(A_m1)
+            A_p1 = transforms.ToTensor()(A_p1)
+            A_p2 = transforms.ToTensor()(A_p2)
+            B_m1 = transforms.ToTensor()(B_m1)
+
+            A_m3 = A_m3[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+            A_m2 = A_m2[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+            A_m1 = A_m1[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+            A_p1 = A_p1[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+            A_p2 = A_p2[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+            
+            B_m1 = B_m1[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+
+            A_m3 = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A_m3)
+            A_m1 = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A_m1)
+            A_m2 = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A_m2)
+            A_p1 = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A_p1)
+            A_p2 = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A_p2)
+            
+            B_m1 = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B_m1)
+            A = torch.cat((B,A_m3,A_m2,A_m1,A_p1,A_p2),dim=0)
+            B = B_m1
+
+
+
+        if self.opt.output_nc == 15:
+            B_path_p1 = self.AB_paths[(index+1) % len(self.AB_paths)]
+            B_path_p2 = self.AB_paths[(index+2) % len(self.AB_paths)]
+            B_path_p3 = self.AB_paths[(index+3) % len(self.AB_paths)]
+            B_path_p4 = self.AB_paths[(index+4) % len(self.AB_paths)]
+            
+            B_img_p1 = Image.open(B_path_p1).convert('RGB')
+            B_img_p2 = Image.open(B_path_p2).convert('RGB')
+            B_img_p3 = Image.open(B_path_p3).convert('RGB')
+            B_img_p4 = Image.open(B_path_p4).convert('RGB')
+            B_p1 = B_img_p1.crop((w2, 0, w, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+            B_p2 = B_img_p2.crop((w2, 0, w, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+            B_p3 = B_img_p3.crop((w2, 0, w, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+            B_p4 = B_img_p4.crop((w2, 0, w, h)).resize((self.opt.loadSize, self.opt.loadSize), Image.BICUBIC)
+                        
+            B_p1 = transforms.ToTensor()(B_p1)
+            B_p2 = transforms.ToTensor()(B_p2)
+            B_p3 = transforms.ToTensor()(B_p3)
+            B_p4 = transforms.ToTensor()(B_p4)
+
+            B_p1 = B_p1[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+            B_p2 = B_p2[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+            B_p3 = B_p3[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+            B_p4 = B_p4[:, h_offset:h_offset + self.opt.fineSize, w_offset:w_offset + self.opt.fineSize]
+            
+            B_p1 = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B_p1)
+            B_p2 = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B_p2)
+            B_p3 = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B_p3)
+            B_p4 = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B_p4)
+            
+            B = torch.cat((B,B_p1,B_p2,B_p3,B_p4),dim=0)
+
+        if self.opt.direction == 'BtoA':
+            input_nc = self.opt.output_nc
+            output_nc = self.opt.input_nc
+        else:
+            input_nc = self.opt.input_nc
+            output_nc = self.opt.output_nc
+        '''
+        if (not self.opt.no_flip) and random.random() < 0.5:
+            idx = [i for i in range(A.size(2) - 1, -1, -1)]
+            idx = torch.LongTensor(idx)
+            A = A.index_select(2, idx)
+            B = B.index_select(2, idx)
+        '''
+
+        if input_nc == 1:  # RGB to gray
+            tmp = A[0, ...] * 0.299 + A[1, ...] * 0.587 + A[2, ...] * 0.114
+            A = tmp.unsqueeze(0)
+
+        if output_nc == 1:  # RGB to gray
+            tmp = B[0, ...] * 0.299 + B[1, ...] * 0.587 + B[2, ...] * 0.114
+            B = tmp.unsqueeze(0)
+
+        return {'A': A, 'B': B,
+                'A_paths': AB_path, 'B_paths': AB_path}
+
+    def __len__(self):
+        return len(self.AB_paths)
+
+    def name(self):
+        return 'AlignedDataset'
