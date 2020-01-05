@@ -26,7 +26,8 @@ from pix2pix import util
 from pix2pix import AlignedDataset
 from pix2pix import create_model
 from pix2pix import CreateDataLoader
-from model import inverse_model
+
+from inverse_models import Controller_NN
 
 from IPython import embed
 
@@ -111,7 +112,7 @@ def run_model_pipelined(cmd_opt):
     Takes the output of Pix2Pix feeds it to inverse_model
     '''
     model_1 = Pix2Pix(cmd_opt) #the cmd_opt includes which checkpoint needs to be loaded for the goal generator
-    model_2 = inverse_model(3, reshape)
+    model_2 = Controller_NN()
 
     # initialize model_2 with pretrained weights
     model_2 = torch.nn.DataParallel(model_2,device_ids=range(torch.cuda.device_count()))
